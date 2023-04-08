@@ -1,2 +1,3 @@
-# -rison-rs
-Rison(https://github.com/Nanonid/rison) implementation in Rust
+# rison-rs
+
+[Rison](https://github.com/Nanonid/rison) implementation in Rust.
