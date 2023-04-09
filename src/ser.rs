@@ -35,35 +35,53 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     }
 
     fn serialize_i8(self, v: i8) -> Result<(), Self::Error> {
-        todo!()
+        int_to_string(&mut self.buf, v);
+        Ok(())
     }
 
     fn serialize_i16(self, v: i16) -> Result<(), Self::Error> {
-        todo!()
+        int_to_string(&mut self.buf, v);
+        Ok(())
     }
 
     fn serialize_i32(self, v: i32) -> Result<(), Self::Error> {
-        todo!()
+        int_to_string(&mut self.buf, v);
+        Ok(())
     }
 
     fn serialize_i64(self, v: i64) -> Result<(), Self::Error> {
-        todo!()
+        int_to_string(&mut self.buf, v);
+        Ok(())
+    }
+
+    fn serialize_i128(self, v: i128) -> Result<(), Self::Error> {
+        int_to_string(&mut self.buf, v);
+        Ok(())
     }
 
     fn serialize_u8(self, v: u8) -> Result<(), Self::Error> {
-        todo!()
+        int_to_string(&mut self.buf, v);
+        Ok(())
     }
 
     fn serialize_u16(self, v: u16) -> Result<(), Self::Error> {
-        todo!()
+        int_to_string(&mut self.buf, v);
+        Ok(())
     }
 
     fn serialize_u32(self, v: u32) -> Result<(), Self::Error> {
-        todo!()
+        int_to_string(&mut self.buf, v);
+        Ok(())
     }
 
     fn serialize_u64(self, v: u64) -> Result<(), Self::Error> {
-        todo!()
+        int_to_string(&mut self.buf, v);
+        Ok(())
+    }
+
+    fn serialize_u128(self, v: u128) -> Result<(), Self::Error> {
+        int_to_string(&mut self.buf, v);
+        Ok(())
     }
 
     fn serialize_f32(self, v: f32) -> Result<(), Self::Error> {
@@ -319,6 +337,13 @@ impl<'a> ser::SerializeStructVariant for SeqSerializer<'a> {
     fn end(self) -> Result<Self::Ok, Self::Error> {
         todo!()
     }
+}
+
+#[inline]
+fn int_to_string<I: itoa::Integer>(s: &mut String, i: I) {
+    use itoa::Buffer;
+    let mut buf = Buffer::new();
+    s.push_str(buf.format(i));
 }
 
 pub fn to_string<T>(value: &T) -> String
