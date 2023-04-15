@@ -73,3 +73,14 @@ fn test_ser_str() {
     assert_eq!(to_string("\t").as_str(), "\t");
     assert_eq!(to_string(" ").as_str(), "' '");
 }
+
+#[test]
+fn test_seq() {
+    assert_eq!(to_string::<[i32]>(&[]).as_str(), "!()");
+    assert_eq!(to_string(&[1]).as_str(), "!(1)");
+    assert_eq!(to_string(&[1, 2]).as_str(), "!(1,2)");
+    assert_eq!(
+        to_string(&[&b"ab"[..], &b""[..]]).as_str(),
+        "!(!(97,98),!())"
+    );
+}

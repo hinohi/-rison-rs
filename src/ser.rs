@@ -1,4 +1,4 @@
-use alloc::{string::String, vec::Vec};
+use alloc::string::String;
 use core::{fmt::Display, num::FpCategory};
 
 use serde::ser::{self, Serialize};
@@ -9,8 +9,10 @@ pub struct Serializer {
     buf: String,
 }
 
+#[doc(hidden)]
 pub struct SeqSerializer<'a> {
     ser: &'a mut Serializer,
+    first: bool,
 }
 
 impl<'a> ser::Serializer for &'a mut Serializer {
@@ -114,7 +116,12 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<(), Self::Error> {
-        todo!()
+        use serde::ser::SerializeSeq;
+        let mut seq = self.serialize_seq(Some(v.len()))?;
+        for b in v {
+            seq.serialize_element(b)?;
+        }
+        seq.end()
     }
 
     fn serialize_none(self) -> Result<(), Self::Error> {
@@ -125,7 +132,7 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     where
         T: Serialize,
     {
-        todo!()
+        value.serialize(self)
     }
 
     fn serialize_unit(self) -> Result<(), Self::Error> {
@@ -133,28 +140,28 @@ impl<'a> ser::Serializer for &'a mut Serializer {
         Ok(())
     }
 
-    fn serialize_unit_struct(self, name: &'static str) -> Result<(), Self::Error> {
-        todo!()
+    fn serialize_unit_struct(self, _name: &'static str) -> Result<(), Self::Error> {
+        self.serialize_unit()
     }
 
     fn serialize_unit_variant(
         self,
-        name: &'static str,
-        variant_index: u32,
+        _name: &'static str,
+        _variant_index: u32,
         variant: &'static str,
     ) -> Result<(), Self::Error> {
-        todo!()
+        self.serialize_str(variant)
     }
 
     fn serialize_newtype_struct<T: ?Sized>(
         self,
-        name: &'static str,
+        _name: &'static str,
         value: &T,
     ) -> Result<(), Self::Error>
     where
         T: Serialize,
     {
-        todo!()
+        value.serialize(self)
     }
 
     fn serialize_newtype_variant<T: ?Sized>(
@@ -170,20 +177,24 @@ impl<'a> ser::Serializer for &'a mut Serializer {
         todo!()
     }
 
-    fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
-        todo!()
+    fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
+        self.buf.push_str("!(");
+        Ok(SeqSerializer {
+            ser: self,
+            first: true,
+        })
     }
 
     fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple, Self::Error> {
-        todo!()
+        self.serialize_seq(Some(len))
     }
 
     fn serialize_tuple_struct(
         self,
-        name: &'static str,
+        _name: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleStruct, Self::Error> {
-        todo!()
+        self.serialize_seq(Some(len))
     }
 
     fn serialize_tuple_variant(
@@ -234,11 +245,13 @@ impl<'a> ser::SerializeSeq for SeqSerializer<'a> {
     where
         T: Serialize,
     {
-        todo!()
+        self.write_sep();
+        value.serialize(&mut *self.ser)
     }
 
     fn end(self) -> Result<(), Self::Error> {
-        todo!()
+        self.ser.buf.push(')');
+        Ok(())
     }
 }
 
@@ -250,11 +263,13 @@ impl<'a> ser::SerializeTuple for SeqSerializer<'a> {
     where
         T: Serialize,
     {
-        todo!()
+        self.write_sep();
+        value.serialize(&mut *self.ser)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.ser.buf.push(')');
+        Ok(())
     }
 }
 
@@ -350,6 +365,16 @@ impl<'a> ser::SerializeStructVariant for SeqSerializer<'a> {
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
         todo!()
+    }
+}
+
+impl<'a> SeqSerializer<'a> {
+    fn write_sep(&mut self) {
+        if self.first {
+            self.first = false;
+        } else {
+            self.ser.buf.push(',');
+        }
     }
 }
 
