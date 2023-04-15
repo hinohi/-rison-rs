@@ -1,5 +1,3 @@
-use serde::ser::{self, Serializer};
-
 use serde_rison::ser::to_string;
 
 #[test]
@@ -55,4 +53,23 @@ fn test_ser_float() {
     assert_eq!(to_string(&f64::INFINITY).as_str(), "!n");
     assert_eq!(to_string(&f64::NEG_INFINITY).as_str(), "!n");
     assert_eq!(to_string(&f64::NAN).as_str(), "!n");
+}
+
+#[test]
+fn test_ser_str() {
+    assert_eq!(to_string(&'a').as_str(), "a");
+    assert_eq!(to_string(&' ').as_str(), "' '");
+    assert_eq!(to_string(&'!').as_str(), "'!!'");
+    assert_eq!(to_string(&'\'').as_str(), "'!''");
+    assert_eq!(to_string(&'\n').as_str(), "\n");
+
+    assert_eq!(to_string("").as_str(), "''");
+    assert_eq!(to_string("1").as_str(), "'1'");
+    assert_eq!(to_string("a").as_str(), "a");
+    assert_eq!(to_string("abc").as_str(), "abc");
+    assert_eq!(to_string("あ").as_str(), "あ");
+    assert_eq!(to_string("I'm not a JSON!").as_str(), "'I!'m not a JSON!!'");
+    assert_eq!(to_string("_").as_str(), "_");
+    assert_eq!(to_string("\t").as_str(), "\t");
+    assert_eq!(to_string(" ").as_str(), "' '");
 }

@@ -104,11 +104,13 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     }
 
     fn serialize_char(self, v: char) -> Result<(), Self::Error> {
-        todo!()
+        let mut buf = [0; 4];
+        self.serialize_str(v.encode_utf8(&mut buf))
     }
 
     fn serialize_str(self, v: &str) -> Result<(), Self::Error> {
-        todo!()
+        escaped_str(&mut self.buf, v);
+        Ok(())
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<(), Self::Error> {
@@ -364,6 +366,83 @@ fn float_to_string<F: ryu::Float>(s: &mut String, f: F) {
     let mut buf = Buffer::new();
     s.push_str(buf.format(f))
 }
+
+fn escaped_str(s: &mut String, value: &str) {
+    let bytes = value.as_bytes();
+
+    if bytes.is_empty() {
+        s.push_str("''");
+        return;
+    }
+
+    if !NOT_ID_START[bytes[0] as usize] && !bytes[1..].iter().any(|b| NOT_ID[*b as usize]) {
+        s.push_str(value);
+        return;
+    }
+
+    s.push('\'');
+    let mut start = 0;
+    for (i, &b) in bytes.iter().enumerate() {
+        if b != b'!' && b != b'\'' {
+            continue;
+        }
+
+        if start < i {
+            s.push_str(&value[start..i]);
+        }
+        s.push('!');
+        s.push(b.into());
+
+        start = i + 1;
+    }
+    if start < bytes.len() {
+        s.push_str(&value[start..]);
+    }
+    s.push('\'');
+}
+
+const T: bool = true;
+const F: bool = false;
+// Lookup table: " '!:(),*@$" are true
+static NOT_ID: [bool; 256] = [
+    // 1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // 0
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // 1
+    T, T, F, F, T, F, F, T, T, T, T, F, T, F, F, F, // 2
+    F, F, F, F, F, F, F, F, F, F, T, F, F, F, F, F, // 3
+    T, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // 4
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // 5
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // 6
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // 7
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // 8
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // 9
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // a
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // b
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // c
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // d
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // e
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // f
+];
+// Lookup table: "-0123456789 '!:(),*@$" are true
+static NOT_ID_START: [bool; 256] = [
+    // 1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // 0
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // 1
+    T, T, F, F, T, F, F, T, T, T, T, F, T, T, F, F, // 2
+    T, T, T, T, T, T, T, T, T, T, T, F, F, F, F, F, // 3
+    T, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // 4
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // 5
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // 6
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // 7
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // 8
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // 9
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // a
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // b
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // c
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // d
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // e
+    F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, // f
+];
 
 pub fn to_string<T>(value: &T) -> String
 where
