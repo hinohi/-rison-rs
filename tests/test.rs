@@ -3,6 +3,11 @@ use serde::ser::{self, Serializer};
 use serde_rison::ser::to_string;
 
 #[test]
+fn test_ser_unit() {
+    assert_eq!(to_string(&()).as_str(), "!n");
+}
+
+#[test]
 fn test_ser_bool() {
     assert_eq!(to_string(&true).as_str(), "!t");
     assert_eq!(to_string(&false).as_str(), "!f");
@@ -30,4 +35,24 @@ fn test_ser_integer() {
     assert_eq!(to_string(&u64::MAX), u64::MAX.to_string());
     assert_eq!(to_string(&u128::MIN), u128::MIN.to_string());
     assert_eq!(to_string(&u128::MAX), u128::MAX.to_string());
+}
+
+#[test]
+fn test_ser_float() {
+    assert_eq!(to_string(&1.0_f32).as_str(), "1.0");
+    assert_eq!(to_string(&1.0_f64).as_str(), "1.0");
+
+    assert_eq!(to_string(&f32::MAX).as_str(), "3.4028235e38");
+    assert_eq!(to_string(&f32::MIN).as_str(), "-3.4028235e38");
+    assert_eq!(to_string(&f32::EPSILON).as_str(), "1.1920929e-7");
+    assert_eq!(to_string(&f32::INFINITY).as_str(), "!n");
+    assert_eq!(to_string(&f32::NEG_INFINITY).as_str(), "!n");
+    assert_eq!(to_string(&f32::NAN).as_str(), "!n");
+
+    assert_eq!(to_string(&f64::MAX).as_str(), "1.7976931348623157e308");
+    assert_eq!(to_string(&f64::MIN).as_str(), "-1.7976931348623157e308");
+    assert_eq!(to_string(&f64::EPSILON).as_str(), "2.220446049250313e-16");
+    assert_eq!(to_string(&f64::INFINITY).as_str(), "!n");
+    assert_eq!(to_string(&f64::NEG_INFINITY).as_str(), "!n");
+    assert_eq!(to_string(&f64::NAN).as_str(), "!n");
 }

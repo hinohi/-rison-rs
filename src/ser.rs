@@ -1,6 +1,5 @@
-use alloc::string::String;
-use alloc::vec::Vec;
-use core::fmt::Display;
+use alloc::{string::String, vec::Vec};
+use core::{fmt::Display, num::FpCategory};
 
 use serde::ser::{self, Serialize};
 
@@ -85,11 +84,23 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     }
 
     fn serialize_f32(self, v: f32) -> Result<(), Self::Error> {
-        todo!()
+        match v.classify() {
+            FpCategory::Nan | FpCategory::Infinite => self.serialize_unit(),
+            _ => {
+                float_to_string(&mut self.buf, v);
+                Ok(())
+            }
+        }
     }
 
     fn serialize_f64(self, v: f64) -> Result<(), Self::Error> {
-        todo!()
+        match v.classify() {
+            FpCategory::Nan | FpCategory::Infinite => self.serialize_unit(),
+            _ => {
+                float_to_string(&mut self.buf, v);
+                Ok(())
+            }
+        }
     }
 
     fn serialize_char(self, v: char) -> Result<(), Self::Error> {
@@ -105,7 +116,7 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     }
 
     fn serialize_none(self) -> Result<(), Self::Error> {
-        todo!()
+        self.serialize_unit()
     }
 
     fn serialize_some<T: ?Sized>(self, value: &T) -> Result<(), Self::Error>
@@ -116,7 +127,8 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     }
 
     fn serialize_unit(self) -> Result<(), Self::Error> {
-        todo!()
+        self.buf.push_str("!n");
+        Ok(())
     }
 
     fn serialize_unit_struct(self, name: &'static str) -> Result<(), Self::Error> {
@@ -344,6 +356,13 @@ fn int_to_string<I: itoa::Integer>(s: &mut String, i: I) {
     use itoa::Buffer;
     let mut buf = Buffer::new();
     s.push_str(buf.format(i));
+}
+
+#[inline]
+fn float_to_string<F: ryu::Float>(s: &mut String, f: F) {
+    use ryu::Buffer;
+    let mut buf = Buffer::new();
+    s.push_str(buf.format(f))
 }
 
 pub fn to_string<T>(value: &T) -> String
