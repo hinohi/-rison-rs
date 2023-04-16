@@ -1,4 +1,5 @@
-use maplit::hashmap;
+use maplit::{btreemap, hashmap};
+use ordered_float::OrderedFloat;
 use serde::{ser, Serialize};
 use serde_bytes::{ByteBuf, Bytes};
 use serde_rison::ser::to_string;
@@ -134,6 +135,14 @@ fn test_ser_map() {
     );
     assert_eq!(
         ok(&hashmap! {
+            '!' => 1,
+            '\'' => 2,
+            'a' => 3,
+        }),
+        "('!!':1,'!'':2,a:3)"
+    );
+    assert_eq!(
+        ok(&hashmap! {
             "b" => 1,
             "a" => 2,
         }),
@@ -147,6 +156,18 @@ fn test_ser_map() {
         }),
         "(1:10,2:20,3:30)"
     );
+
+    assert_eq!(ok(&hashmap! {u8::MAX => 1}), format!("({}:1)", u8::MAX));
+    assert_eq!(ok(&hashmap! {i8::MIN => 1}), format!("({}:1)", i8::MIN));
+    assert_eq!(ok(&hashmap! {u16::MAX => 1}), format!("({}:1)", u16::MAX));
+    assert_eq!(ok(&hashmap! {i16::MIN => 1}), format!("({}:1)", i16::MIN));
+    assert_eq!(ok(&hashmap! {u32::MAX => 1}), format!("({}:1)", u32::MAX));
+    assert_eq!(ok(&hashmap! {i32::MIN => 1}), format!("({}:1)", i32::MIN));
+    assert_eq!(ok(&hashmap! {u64::MAX => 1}), format!("({}:1)", u64::MAX));
+    assert_eq!(ok(&hashmap! {i64::MIN => 1}), format!("({}:1)", i64::MIN));
+    assert_eq!(ok(&hashmap! {u128::MAX => 1}), format!("({}:1)", u128::MAX));
+    assert_eq!(ok(&hashmap! {i128::MIN => 1}), format!("({}:1)", i128::MIN));
+
     assert_eq!(
         ok(&hashmap! {
             "key1" => hashmap! {
@@ -185,6 +206,34 @@ fn test_ser_map_err() {
     .is_err());
     assert!(to_string(&hashmap! {
         b"a" => 1
+    })
+    .is_err());
+    assert!(to_string(&hashmap! {
+        Some(1) => 1,
+    })
+    .is_err());
+    assert!(to_string(&hashmap! {
+        Option::<i32>::None => 1,
+    })
+    .is_err());
+    assert!(to_string(&hashmap! {
+        ByteBuf::new() => 1
+    })
+    .is_err());
+    assert!(to_string(&hashmap! {
+        true => 1
+    })
+    .is_err());
+    assert!(to_string(&hashmap! {
+        OrderedFloat(1.0_f32) => 1
+    })
+    .is_err());
+    assert!(to_string(&hashmap! {
+        OrderedFloat(1.0_f64) => 1
+    })
+    .is_err());
+    assert!(to_string(&hashmap! {
+        btreemap! { 1 => 2 } => 3
     })
     .is_err());
 }
@@ -263,6 +312,18 @@ fn test_newtype_variant() {
         E::A(0) => 0
     })
     .is_err());
+}
+
+#[test]
+fn test_newtype_variant_err() {
+    #[derive(Serialize)]
+    enum E {
+        A(HashMap<Vec<i32>, i32>),
+    }
+    let e = E::A(hashmap! {vec![1, 2] => 3});
+    assert!(to_string(&e).is_err());
+    assert!(to_string(&[&e]).is_err());
+    assert!(to_string(&hashmap! {1 => &e}).is_err());
 }
 
 #[test]

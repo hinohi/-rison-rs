@@ -145,9 +145,9 @@ impl<'a> ser::Serializer for &'a mut Serializer {
 
     fn serialize_bytes(self, v: &[u8]) -> Result<()> {
         use serde::ser::SerializeSeq;
-        let mut seq = self.serialize_seq(Some(v.len()))?;
+        let mut seq = self.serialize_seq(Some(v.len())).unwrap();
         for b in v {
-            seq.serialize_element(b)?;
+            seq.serialize_element(b).unwrap();
         }
         seq.end()
     }
@@ -199,7 +199,7 @@ impl<'a> ser::Serializer for &'a mut Serializer {
         T: Serialize,
     {
         self.buf.push('(');
-        self.serialize_str(variant)?;
+        self.serialize_str(variant).unwrap();
         self.buf.push(':');
         value.serialize(&mut *self)?;
         self.buf.push(')');
@@ -231,7 +231,7 @@ impl<'a> ser::Serializer for &'a mut Serializer {
         len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
         self.buf.push('(');
-        self.serialize_str(variant)?;
+        self.serialize_str(variant).unwrap();
         self.buf.push(':');
         self.serialize_seq(Some(len))
     }
@@ -252,7 +252,7 @@ impl<'a> ser::Serializer for &'a mut Serializer {
         len: usize,
     ) -> Result<Self::SerializeStructVariant> {
         self.buf.push('(');
-        self.serialize_str(variant)?;
+        self.serialize_str(variant).unwrap();
         self.buf.push(':');
         self.serialize_map(Some(len))
     }
