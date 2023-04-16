@@ -325,7 +325,7 @@ impl<'a> ser::SerializeTupleVariant for SeqSerializer<'a> {
     }
 
     fn end(self) -> Result<Self::Ok> {
-        self.ser.buf.push(')');
+        self.ser.buf.push_str("))");
         Ok(())
     }
 }
@@ -366,7 +366,7 @@ impl<'a> MapSerializer<'a> {
         }
     }
 
-    fn write_object(self) {
+    fn write_object(self, end: &str) {
         self.ser.buf.push('(');
         for (i, (key, value)) in self.map.iter().enumerate() {
             if i != 0 {
@@ -376,7 +376,7 @@ impl<'a> MapSerializer<'a> {
             self.ser.buf.push(':');
             self.ser.buf.push_str(value.as_str());
         }
-        self.ser.buf.push(')');
+        self.ser.buf.push_str(end);
     }
 }
 
@@ -405,7 +405,7 @@ impl<'a> ser::SerializeMap for MapSerializer<'a> {
     }
 
     fn end(self) -> Result<Self::Ok> {
-        self.write_object();
+        self.write_object(")");
         Ok(())
     }
 }
@@ -425,7 +425,7 @@ impl<'a> ser::SerializeStruct for MapSerializer<'a> {
     }
 
     fn end(self) -> Result<Self::Ok> {
-        self.write_object();
+        self.write_object(")");
         Ok(())
     }
 }
@@ -445,7 +445,7 @@ impl<'a> ser::SerializeStructVariant for MapSerializer<'a> {
     }
 
     fn end(self) -> Result<Self::Ok> {
-        self.write_object();
+        self.write_object("))");
         Ok(())
     }
 }
@@ -564,9 +564,10 @@ impl<'a> ser::Serializer for &'a mut MapKeySerializer {
         self,
         _name: &'static str,
         _variant_index: u32,
-        _variant: &'static str,
+        variant: &'static str,
     ) -> Result<()> {
-        Err(Error::KeyMustBeAString)
+        escaped_str(&mut self.buf, variant);
+        Ok(())
     }
 
     fn serialize_newtype_struct<T: ?Sized>(self, _name: &'static str, value: &T) -> Result<()>

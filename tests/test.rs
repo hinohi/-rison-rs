@@ -1,21 +1,21 @@
 use maplit::hashmap;
-use serde::ser::Serialize;
+use serde::{ser, Serialize};
 use serde_rison::ser::to_string;
 use std::collections::HashMap;
 
-fn ok<T: ?Sized + Serialize>(value: &T) -> String {
+fn ok<T: ?Sized + ser::Serialize>(value: &T) -> String {
     to_string(value).unwrap()
 }
 
 #[test]
 fn test_ser_unit() {
-    assert_eq!(ok(&()).as_str(), "!n");
+    assert_eq!(ok(&()), "!n");
 }
 
 #[test]
 fn test_ser_bool() {
-    assert_eq!(ok(&true).as_str(), "!t");
-    assert_eq!(ok(&false).as_str(), "!f");
+    assert_eq!(ok(&true), "!t");
+    assert_eq!(ok(&false), "!f");
 }
 
 #[test]
@@ -44,72 +44,78 @@ fn test_ser_integer() {
 
 #[test]
 fn test_ser_float() {
-    assert_eq!(ok(&1.0_f32).as_str(), "1.0");
-    assert_eq!(ok(&1.0_f64).as_str(), "1.0");
+    assert_eq!(ok(&1.0_f32), "1.0");
+    assert_eq!(ok(&1.0_f64), "1.0");
 
-    assert_eq!(ok(&f32::MAX).as_str(), "3.4028235e38");
-    assert_eq!(ok(&f32::MIN).as_str(), "-3.4028235e38");
-    assert_eq!(ok(&f32::EPSILON).as_str(), "1.1920929e-7");
-    assert_eq!(ok(&f32::INFINITY).as_str(), "!n");
-    assert_eq!(ok(&f32::NEG_INFINITY).as_str(), "!n");
-    assert_eq!(ok(&f32::NAN).as_str(), "!n");
+    assert_eq!(ok(&f32::MAX), "3.4028235e38");
+    assert_eq!(ok(&f32::MIN), "-3.4028235e38");
+    assert_eq!(ok(&f32::EPSILON), "1.1920929e-7");
+    assert_eq!(ok(&f32::INFINITY), "!n");
+    assert_eq!(ok(&f32::NEG_INFINITY), "!n");
+    assert_eq!(ok(&f32::NAN), "!n");
 
-    assert_eq!(ok(&f64::MAX).as_str(), "1.7976931348623157e308");
-    assert_eq!(ok(&f64::MIN).as_str(), "-1.7976931348623157e308");
-    assert_eq!(ok(&f64::EPSILON).as_str(), "2.220446049250313e-16");
-    assert_eq!(ok(&f64::INFINITY).as_str(), "!n");
-    assert_eq!(ok(&f64::NEG_INFINITY).as_str(), "!n");
-    assert_eq!(ok(&f64::NAN).as_str(), "!n");
+    assert_eq!(ok(&f64::MAX), "1.7976931348623157e308");
+    assert_eq!(ok(&f64::MIN), "-1.7976931348623157e308");
+    assert_eq!(ok(&f64::EPSILON), "2.220446049250313e-16");
+    assert_eq!(ok(&f64::INFINITY), "!n");
+    assert_eq!(ok(&f64::NEG_INFINITY), "!n");
+    assert_eq!(ok(&f64::NAN), "!n");
 }
 
 #[test]
 fn test_ser_str() {
-    assert_eq!(ok(&'a').as_str(), "a");
-    assert_eq!(ok(&' ').as_str(), "' '");
-    assert_eq!(ok(&'!').as_str(), "'!!'");
-    assert_eq!(ok(&'\'').as_str(), "'!''");
-    assert_eq!(ok(&'\n').as_str(), "\n");
+    assert_eq!(ok(&'a'), "a");
+    assert_eq!(ok(&' '), "' '");
+    assert_eq!(ok(&'!'), "'!!'");
+    assert_eq!(ok(&'\''), "'!''");
+    assert_eq!(ok(&'\n'), "\n");
 
-    assert_eq!(ok("").as_str(), "''");
-    assert_eq!(ok("1").as_str(), "'1'");
-    assert_eq!(ok("a").as_str(), "a");
-    assert_eq!(ok("abc").as_str(), "abc");
-    assert_eq!(ok("あ").as_str(), "あ");
-    assert_eq!(ok("I'm not a JSON!").as_str(), "'I!'m not a JSON!!'");
-    assert_eq!(ok("_").as_str(), "_");
-    assert_eq!(ok("\t").as_str(), "\t");
-    assert_eq!(ok(" ").as_str(), "' '");
+    assert_eq!(ok(""), "''");
+    assert_eq!(ok("1"), "'1'");
+    assert_eq!(ok("a"), "a");
+    assert_eq!(ok("abc"), "abc");
+    assert_eq!(ok("あ"), "あ");
+    assert_eq!(ok("I'm not a JSON!"), "'I!'m not a JSON!!'");
+    assert_eq!(ok("_"), "_");
+    assert_eq!(ok("\t"), "\t");
+    assert_eq!(ok(" "), "' '");
 }
 
 #[test]
-fn test_seq() {
-    assert_eq!(ok::<[i32]>(&[]).as_str(), "!()");
-    assert_eq!(ok(&[1]).as_str(), "!(1)");
-    assert_eq!(ok(&[1, 2]).as_str(), "!(1,2)");
-    assert_eq!(ok(&[&b"ab"[..], &b""[..]]).as_str(), "!(!(97,98),!())");
-    assert_eq!(ok(&vec![Some(1), None]).as_str(), "!(1,!n)");
+fn test_ser_seq() {
+    assert_eq!(ok::<[i32]>(&[]), "!()");
+    assert_eq!(ok(&[1]), "!(1)");
+    assert_eq!(ok(&[1, 2]), "!(1,2)");
+    assert_eq!(ok(&[&b"ab"[..], &b""[..]]), "!(!(97,98),!())");
+    assert_eq!(ok(&vec![Some(1), None]), "!(1,!n)");
+    assert_eq!(ok(&vec![0.0, f64::INFINITY, f64::NAN]), "!(0.0,!n,!n)");
     assert_eq!(
-        ok(&vec![Some(Some("a!")), Some(None), None]).as_str(),
+        ok(&vec![Some(Some("a!")), Some(None), None]),
         "!('a!!',!n,!n)"
     );
 }
 
 #[test]
-fn test_map() {
-    assert_eq!(ok(&HashMap::<String, String>::new()).as_str(), "()");
+fn test_ser_tuple() {
+    assert_eq!(ok(&(1,)), "!(1)");
+    assert_eq!(ok(&("a", 1)), "!(a,1)");
+    assert_eq!(ok(&((3,), (2,), 1)), "!(!(3),!(2),1)");
+}
+
+#[test]
+fn test_ser_map() {
+    assert_eq!(ok(&HashMap::<String, String>::new()), "()");
     assert_eq!(
         ok(&hashmap! {
             "I'm a key!" => "I'm a value!",
-        })
-        .as_str(),
+        }),
         "('I!'m a key!!':'I!'m a value!!')"
     );
     assert_eq!(
         ok(&hashmap! {
             "b" => 1,
             "a" => 2,
-        })
-        .as_str(),
+        }),
         "(a:2,b:1)"
     );
     assert_eq!(
@@ -117,8 +123,7 @@ fn test_map() {
             1_u64 => 10_u128,
             2_u64 => 20_u128,
             3_u64 => 30_u128,
-        })
-        .as_str(),
+        }),
         "(1:10,2:20,3:30)"
     );
     assert_eq!(
@@ -131,16 +136,198 @@ fn test_map() {
                 ],
             },
             "key2" => hashmap! {},
-        })
-        .as_str(),
+        }),
         "(key1:(1:!((a:A))),key2:())"
     );
     assert_eq!(
         ok(&hashmap! {
             "B" => None,
             "A" => Some("a"),
-        })
-        .as_str(),
+        }),
         "(A:a,B:!n)"
+    );
+}
+
+#[test]
+fn test_ser_map_err() {
+    assert!(to_string(&hashmap! {
+        () => 1
+    })
+    .is_err());
+    assert!(to_string(&hashmap! {
+        [1] => 1
+    })
+    .is_err());
+    assert!(to_string(&hashmap! {
+        vec![1] => 1
+    })
+    .is_err());
+    assert!(to_string(&hashmap! {
+        b"a" => 1
+    })
+    .is_err());
+}
+
+#[test]
+fn test_unit_struct() {
+    #[derive(Serialize, Hash, Eq, PartialEq)]
+    struct Unit;
+    assert_eq!(ok(&Unit), "!n");
+    assert_eq!(
+        ok(&hashmap! {
+            1 => Unit,
+        }),
+        "(1:!n)"
+    );
+    assert!(to_string(&hashmap! {
+        Unit => 1,
+    })
+    .is_err());
+}
+
+#[test]
+fn test_unit_variant() {
+    #[derive(Serialize, Hash, Eq, PartialEq)]
+    enum E {
+        A,
+        #[serde(rename = "b!")]
+        B,
+    }
+    assert_eq!(ok(&E::A), "A");
+    assert_eq!(ok(&E::B), "'b!!'");
+    assert_eq!(ok(&[E::B, E::A]), "!('b!!',A)");
+    assert_eq!(
+        ok(&hashmap! {
+            E::A => 1,
+            E::B => 2,
+        }),
+        "('b!!':2,A:1)"
+    );
+}
+
+#[test]
+fn test_newtype_struct() {
+    #[derive(Serialize, Hash, Eq, PartialEq)]
+    struct N(u8);
+    assert_eq!(ok(&N(0)), "0");
+    assert_eq!(ok(&[N(1)]), "!(1)");
+    assert_eq!(
+        ok(&hashmap! {
+            N(3) => 1,
+            N(20) => 2,
+            N(100) => 3,
+        }),
+        "(100:3,20:2,3:1)"
     )
+}
+
+#[test]
+fn test_newtype_variant() {
+    #[derive(Serialize, Hash, Eq, PartialEq)]
+    enum E {
+        #[serde(rename = "a!")]
+        A(u8),
+        B(Option<i32>),
+    }
+    assert_eq!(ok(&E::A(0)), "('a!!':0)");
+    assert_eq!(ok(&E::B(None)), "(B:!n)");
+    assert_eq!(ok(&[E::A(1), E::B(Some(2))]), "!(('a!!':1),(B:2))");
+    assert_eq!(
+        ok(&hashmap! {
+            1 => E::A(100),
+        }),
+        "(1:('a!!':100))"
+    );
+    assert!(to_string(&hashmap! {
+        E::A(0) => 0
+    })
+    .is_err());
+}
+
+#[test]
+fn test_tuple_struct() {
+    #[derive(Serialize, Hash, Eq, PartialEq)]
+    struct Abc(u8, u16, u32);
+
+    assert_eq!(ok(&Abc(2, 1, 0)), "!(2,1,0)");
+    assert_eq!(ok(&[Abc(2, 1, 0)]), "!(!(2,1,0))");
+    assert_eq!(
+        ok(&hashmap! {
+            1 => Abc(1, 2, 3),
+        }),
+        "(1:!(1,2,3))"
+    );
+    assert!(to_string(&hashmap! {
+        Abc(1, 2, 3) => 1
+    })
+    .is_err());
+}
+
+#[test]
+fn test_tuple_variant() {
+    #[derive(Serialize, Hash, Eq, PartialEq)]
+    enum E {
+        #[serde(rename = "a!")]
+        A(i32, u32),
+        B(u8, u8),
+    }
+    assert_eq!(ok(&E::A(-1, 1)), "('a!!':!(-1,1))");
+    assert_eq!(ok(&E::B(0, 1)), "(B:!(0,1))");
+    assert_eq!(ok(&[E::A(-1, 1)]), "!(('a!!':!(-1,1)))");
+    assert_eq!(
+        ok(&hashmap! {
+            1 => E::A(1, 2),
+            2 => E::B(10, 20),
+        }),
+        "(1:('a!!':!(1,2)),2:(B:!(10,20)))"
+    );
+    assert!(to_string(&hashmap! {
+       E::A(1, 2) => 1,
+       E::B(10, 20) => 2,
+    })
+    .is_err());
+}
+
+#[test]
+fn test_struct() {
+    #[derive(Serialize, Hash, Eq, PartialEq)]
+    struct S {
+        #[serde(rename = "a!")]
+        a: u32,
+        b: u8,
+    }
+    assert_eq!(ok(&S { a: 1, b: 2 }), "('a!!':1,b:2)");
+    assert_eq!(ok(&[S { a: 1, b: 2 }]), "!(('a!!':1,b:2))");
+    assert_eq!(
+        ok(&hashmap! {
+            1 => S { a: 1, b: 2 },
+        }),
+        "(1:('a!!':1,b:2))"
+    );
+    assert!(to_string(&hashmap! {
+       S { a: 1, b: 2 } => 1,
+    })
+    .is_err());
+}
+
+#[test]
+fn test_struct_variant() {
+    #[derive(Serialize, Hash, Eq, PartialEq)]
+    enum E {
+        A { a: u8 },
+        B { a: u8, b: u32 },
+    }
+    assert_eq!(ok(&E::A { a: 1 }), "(A:(a:1))");
+    assert_eq!(ok(&E::B { a: 2, b: 3 }), "(B:(a:2,b:3))");
+    assert_eq!(ok(&[E::A { a: 1 }]), "!((A:(a:1)))");
+    assert_eq!(
+        ok(&hashmap! {
+            1 => E::A { a: 1 },
+        }),
+        "(1:(A:(a:1)))"
+    );
+    assert!(to_string(&hashmap! {
+       E::A { a: 1 } => 1,
+    })
+    .is_err());
 }
