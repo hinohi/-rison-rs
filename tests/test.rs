@@ -1,5 +1,7 @@
+use maplit::hashmap;
 use serde::ser::Serialize;
 use serde_rison::ser::to_string;
+use std::collections::HashMap;
 
 fn ok<T: ?Sized + Serialize>(value: &T) -> String {
     to_string(value).unwrap()
@@ -85,4 +87,60 @@ fn test_seq() {
     assert_eq!(ok(&[1]).as_str(), "!(1)");
     assert_eq!(ok(&[1, 2]).as_str(), "!(1,2)");
     assert_eq!(ok(&[&b"ab"[..], &b""[..]]).as_str(), "!(!(97,98),!())");
+    assert_eq!(ok(&vec![Some(1), None]).as_str(), "!(1,!n)");
+    assert_eq!(
+        ok(&vec![Some(Some("a!")), Some(None), None]).as_str(),
+        "!('a!!',!n,!n)"
+    );
+}
+
+#[test]
+fn test_map() {
+    assert_eq!(ok(&HashMap::<String, String>::new()).as_str(), "()");
+    assert_eq!(
+        ok(&hashmap! {
+            "I'm a key!" => "I'm a value!",
+        })
+        .as_str(),
+        "('I!'m a key!!':'I!'m a value!!')"
+    );
+    assert_eq!(
+        ok(&hashmap! {
+            "b" => 1,
+            "a" => 2,
+        })
+        .as_str(),
+        "(a:2,b:1)"
+    );
+    assert_eq!(
+        ok(&hashmap! {
+            1_u64 => 10_u128,
+            2_u64 => 20_u128,
+            3_u64 => 30_u128,
+        })
+        .as_str(),
+        "(1:10,2:20,3:30)"
+    );
+    assert_eq!(
+        ok(&hashmap! {
+            "key1" => hashmap! {
+                1 => vec![
+                    hashmap! {
+                        "a" => "A",
+                    },
+                ],
+            },
+            "key2" => hashmap! {},
+        })
+        .as_str(),
+        "(key1:(1:!((a:A))),key2:())"
+    );
+    assert_eq!(
+        ok(&hashmap! {
+            "B" => None,
+            "A" => Some("a"),
+        })
+        .as_str(),
+        "(A:a,B:!n)"
+    )
 }

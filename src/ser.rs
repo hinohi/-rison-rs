@@ -1,7 +1,10 @@
-use alloc::boxed::Box;
-use alloc::string::{String, ToString};
+use alloc::{
+    boxed::Box,
+    collections::BTreeMap,
+    string::{String, ToString},
+};
 use core::{fmt, num::FpCategory, result};
-use serde::ser::{self, Serialize};
+use serde::ser::{self, Impossible, Serialize};
 
 pub enum Error {
     Message(Box<str>),
@@ -47,9 +50,9 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     type SerializeTuple = SeqSerializer<'a>;
     type SerializeTupleStruct = SeqSerializer<'a>;
     type SerializeTupleVariant = SeqSerializer<'a>;
-    type SerializeMap = SeqSerializer<'a>;
-    type SerializeStruct = SeqSerializer<'a>;
-    type SerializeStructVariant = SeqSerializer<'a>;
+    type SerializeMap = MapSerializer<'a>;
+    type SerializeStruct = MapSerializer<'a>;
+    type SerializeStructVariant = MapSerializer<'a>;
 
     fn serialize_bool(self, v: bool) -> Result<()> {
         if v {
@@ -234,7 +237,7 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     }
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
-        Ok(SeqSerializer::new(self))
+        Ok(MapSerializer::new(self))
     }
 
     fn serialize_struct(self, _name: &'static str, len: usize) -> Result<Self::SerializeStruct> {
@@ -327,70 +330,6 @@ impl<'a> ser::SerializeTupleVariant for SeqSerializer<'a> {
     }
 }
 
-impl<'a> ser::SerializeMap for SeqSerializer<'a> {
-    type Ok = ();
-    type Error = Error;
-
-    fn serialize_key<T: ?Sized>(&mut self, key: &T) -> Result<()>
-    where
-        T: Serialize,
-    {
-        todo!()
-    }
-
-    fn serialize_value<T: ?Sized>(&mut self, value: &T) -> Result<()>
-    where
-        T: Serialize,
-    {
-        value.serialize(&mut *self.ser)
-    }
-
-    fn end(self) -> Result<Self::Ok> {
-        self.ser.buf.push(')');
-        Ok(())
-    }
-}
-
-impl<'a> ser::SerializeStruct for SeqSerializer<'a> {
-    type Ok = ();
-    type Error = Error;
-
-    fn serialize_field<T: ?Sized>(&mut self, key: &'static str, value: &T) -> Result<()>
-    where
-        T: Serialize,
-    {
-        self.write_sep();
-        escaped_str(&mut self.ser.buf, key);
-        self.ser.buf.push(':');
-        value.serialize(&mut *self.ser)
-    }
-
-    fn end(self) -> Result<Self::Ok> {
-        self.ser.buf.push(')');
-        Ok(())
-    }
-}
-
-impl<'a> ser::SerializeStructVariant for SeqSerializer<'a> {
-    type Ok = ();
-    type Error = Error;
-
-    fn serialize_field<T: ?Sized>(&mut self, key: &'static str, value: &T) -> Result<()>
-    where
-        T: Serialize,
-    {
-        self.write_sep();
-        escaped_str(&mut self.ser.buf, key);
-        self.ser.buf.push(':');
-        value.serialize(&mut *self.ser)
-    }
-
-    fn end(self) -> Result<Self::Ok> {
-        self.ser.buf.push(')');
-        Ok(())
-    }
-}
-
 #[doc(hidden)]
 pub struct SeqSerializer<'a> {
     ser: &'a mut Serializer,
@@ -408,6 +347,290 @@ impl<'a> SeqSerializer<'a> {
         } else {
             self.ser.buf.push(',');
         }
+    }
+}
+
+#[doc(hidden)]
+pub struct MapSerializer<'a> {
+    ser: &'a mut Serializer,
+    map: BTreeMap<String, String>,
+    key: Option<String>,
+}
+
+impl<'a> MapSerializer<'a> {
+    fn new(ser: &'a mut Serializer) -> MapSerializer<'a> {
+        MapSerializer {
+            ser,
+            map: BTreeMap::new(),
+            key: None,
+        }
+    }
+
+    fn write_object(self) {
+        self.ser.buf.push('(');
+        for (i, (key, value)) in self.map.iter().enumerate() {
+            if i != 0 {
+                self.ser.buf.push(',');
+            }
+            self.ser.buf.push_str(key.as_str());
+            self.ser.buf.push(':');
+            self.ser.buf.push_str(value.as_str());
+        }
+        self.ser.buf.push(')');
+    }
+}
+
+impl<'a> ser::SerializeMap for MapSerializer<'a> {
+    type Ok = ();
+    type Error = Error;
+
+    fn serialize_key<T: ?Sized>(&mut self, key: &T) -> Result<()>
+    where
+        T: Serialize,
+    {
+        let mut ser = MapKeySerializer {
+            buf: String::with_capacity(4),
+        };
+        key.serialize(&mut ser)?;
+        self.key = Some(ser.buf);
+        Ok(())
+    }
+
+    fn serialize_value<T: ?Sized>(&mut self, value: &T) -> Result<()>
+    where
+        T: Serialize,
+    {
+        self.map.insert(self.key.take().unwrap(), to_string(value)?);
+        Ok(())
+    }
+
+    fn end(self) -> Result<Self::Ok> {
+        self.write_object();
+        Ok(())
+    }
+}
+
+impl<'a> ser::SerializeStruct for MapSerializer<'a> {
+    type Ok = ();
+    type Error = Error;
+
+    fn serialize_field<T: ?Sized>(&mut self, key: &'static str, value: &T) -> Result<()>
+    where
+        T: Serialize,
+    {
+        let mut buf = String::with_capacity(key.len());
+        escaped_str(&mut buf, key);
+        self.map.insert(buf, to_string(value)?);
+        Ok(())
+    }
+
+    fn end(self) -> Result<Self::Ok> {
+        self.write_object();
+        Ok(())
+    }
+}
+
+impl<'a> ser::SerializeStructVariant for MapSerializer<'a> {
+    type Ok = ();
+    type Error = Error;
+
+    fn serialize_field<T: ?Sized>(&mut self, key: &'static str, value: &T) -> Result<()>
+    where
+        T: Serialize,
+    {
+        let mut buf = String::with_capacity(key.len());
+        escaped_str(&mut buf, key);
+        self.map.insert(buf, to_string(value)?);
+        Ok(())
+    }
+
+    fn end(self) -> Result<Self::Ok> {
+        self.write_object();
+        Ok(())
+    }
+}
+
+struct MapKeySerializer {
+    buf: String,
+}
+
+impl<'a> ser::Serializer for &'a mut MapKeySerializer {
+    type Ok = ();
+    type Error = Error;
+    type SerializeSeq = Impossible<(), Error>;
+    type SerializeTuple = Impossible<(), Error>;
+    type SerializeTupleStruct = Impossible<(), Error>;
+    type SerializeTupleVariant = Impossible<(), Error>;
+    type SerializeMap = Impossible<(), Error>;
+    type SerializeStruct = Impossible<(), Error>;
+    type SerializeStructVariant = Impossible<(), Error>;
+
+    fn serialize_bool(self, _v: bool) -> Result<()> {
+        Err(Error::KeyMustBeAString)
+    }
+
+    fn serialize_i8(self, v: i8) -> Result<()> {
+        int_to_string(&mut self.buf, v);
+        Ok(())
+    }
+
+    fn serialize_i16(self, v: i16) -> Result<()> {
+        int_to_string(&mut self.buf, v);
+        Ok(())
+    }
+
+    fn serialize_i32(self, v: i32) -> Result<()> {
+        int_to_string(&mut self.buf, v);
+        Ok(())
+    }
+
+    fn serialize_i64(self, v: i64) -> Result<()> {
+        int_to_string(&mut self.buf, v);
+        Ok(())
+    }
+
+    fn serialize_i128(self, v: i128) -> Result<()> {
+        int_to_string(&mut self.buf, v);
+        Ok(())
+    }
+
+    fn serialize_u8(self, v: u8) -> Result<()> {
+        int_to_string(&mut self.buf, v);
+        Ok(())
+    }
+
+    fn serialize_u16(self, v: u16) -> Result<()> {
+        int_to_string(&mut self.buf, v);
+        Ok(())
+    }
+
+    fn serialize_u32(self, v: u32) -> Result<()> {
+        int_to_string(&mut self.buf, v);
+        Ok(())
+    }
+
+    fn serialize_u64(self, v: u64) -> Result<()> {
+        int_to_string(&mut self.buf, v);
+        Ok(())
+    }
+
+    fn serialize_u128(self, v: u128) -> Result<()> {
+        int_to_string(&mut self.buf, v);
+        Ok(())
+    }
+
+    fn serialize_f32(self, _v: f32) -> Result<()> {
+        Err(Error::KeyMustBeAString)
+    }
+
+    fn serialize_f64(self, _v: f64) -> Result<()> {
+        Err(Error::KeyMustBeAString)
+    }
+
+    fn serialize_char(self, v: char) -> Result<()> {
+        let mut buf = [0; 4];
+        self.serialize_str(v.encode_utf8(&mut buf))
+    }
+
+    fn serialize_str(self, v: &str) -> Result<()> {
+        escaped_str(&mut self.buf, v);
+        Ok(())
+    }
+
+    fn serialize_bytes(self, _v: &[u8]) -> Result<()> {
+        Err(Error::KeyMustBeAString)
+    }
+
+    fn serialize_none(self) -> Result<()> {
+        Err(Error::KeyMustBeAString)
+    }
+
+    fn serialize_some<T: ?Sized>(self, _value: &T) -> Result<()>
+    where
+        T: Serialize,
+    {
+        Err(Error::KeyMustBeAString)
+    }
+
+    fn serialize_unit(self) -> Result<()> {
+        Err(Error::KeyMustBeAString)
+    }
+
+    fn serialize_unit_struct(self, _name: &'static str) -> Result<()> {
+        Err(Error::KeyMustBeAString)
+    }
+
+    fn serialize_unit_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+    ) -> Result<()> {
+        Err(Error::KeyMustBeAString)
+    }
+
+    fn serialize_newtype_struct<T: ?Sized>(self, _name: &'static str, value: &T) -> Result<()>
+    where
+        T: Serialize,
+    {
+        value.serialize(self)
+    }
+
+    fn serialize_newtype_variant<T: ?Sized>(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+        _value: &T,
+    ) -> Result<()>
+    where
+        T: Serialize,
+    {
+        Err(Error::KeyMustBeAString)
+    }
+
+    fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
+        Err(Error::KeyMustBeAString)
+    }
+
+    fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> {
+        Err(Error::KeyMustBeAString)
+    }
+
+    fn serialize_tuple_struct(
+        self,
+        _name: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeTupleStruct> {
+        Err(Error::KeyMustBeAString)
+    }
+
+    fn serialize_tuple_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeTupleVariant> {
+        Err(Error::KeyMustBeAString)
+    }
+
+    fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
+        Err(Error::KeyMustBeAString)
+    }
+
+    fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
+        Err(Error::KeyMustBeAString)
+    }
+
+    fn serialize_struct_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeStructVariant> {
+        Err(Error::KeyMustBeAString)
     }
 }
 
