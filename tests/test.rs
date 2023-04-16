@@ -1,5 +1,6 @@
 use maplit::hashmap;
 use serde::{ser, Serialize};
+use serde_bytes::{ByteBuf, Bytes};
 use serde_rison::ser::to_string;
 use std::collections::HashMap;
 
@@ -93,6 +94,26 @@ fn test_ser_seq() {
         ok(&vec![Some(Some("a!")), Some(None), None]),
         "!('a!!',!n,!n)"
     );
+}
+
+#[test]
+fn test_ser_bytes() {
+    let buf = vec![];
+    let bytes = Bytes::new(&buf);
+    assert_eq!(ok(&bytes), "!()".to_string());
+
+    let buf = vec![1, 2, 3];
+    let bytes = Bytes::new(&buf);
+    assert_eq!(ok(&bytes), "!(1,2,3)".to_string());
+}
+
+#[test]
+fn test_byte_buf_ser() {
+    let bytes = ByteBuf::new();
+    assert_eq!(ok(&bytes), "!()".to_string());
+
+    let bytes = ByteBuf::from(vec![1, 2, 3]);
+    assert_eq!(ok(&bytes), "!(1,2,3)".to_string());
 }
 
 #[test]
@@ -330,4 +351,36 @@ fn test_struct_variant() {
        E::A { a: 1 } => 1,
     })
     .is_err());
+}
+
+#[test]
+fn test_key_error() {
+    #[derive(Serialize, Hash, Eq, PartialEq)]
+    struct S {
+        a: u32,
+    }
+    let err = to_string(&hashmap! {
+        S { a: 0 } => 1,
+    })
+    .expect_err("Not Error");
+    assert_eq!(err.to_string(), "key must be a string");
+    assert_eq!(format!("{:?}", err), "key must be a string");
+}
+
+#[test]
+fn test_custom_error() {
+    struct P;
+
+    impl Serialize for P {
+        fn serialize<S>(&self, _s: S) -> Result<S::Ok, S::Error>
+        where
+            S: ser::Serializer,
+        {
+            Err(ser::Error::custom("foo!"))
+        }
+    }
+
+    let err = to_string(&P).expect_err("Not Err");
+    assert_eq!(err.to_string(), "foo!");
+    assert_eq!(format!("{:?}", err), "foo!");
 }
