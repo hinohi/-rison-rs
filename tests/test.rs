@@ -15,13 +15,30 @@ fn test_ser_unit() {
 }
 
 #[test]
-fn test_bool() {
+fn test_ser_bool() {
     assert_eq!(ok(&true), "!t");
     assert_eq!(ok(&false), "!f");
+}
+
+#[test]
+fn test_de_bool() {
     let b: bool = from_str("!t").unwrap();
     assert_eq!(b, true);
     let b: bool = from_str("!f").unwrap();
     assert_eq!(b, false);
+
+    assert_eq!(
+        from_str::<bool>("!n").unwrap_err().to_string(),
+        "invalid type: null, expected a boolean at position 2"
+    );
+    assert_eq!(
+        from_str::<bool>("!()").unwrap_err().to_string(),
+        "invalid type: sequence, expected a boolean at position 2"
+    );
+    assert_eq!(
+        from_str::<bool>("!!").unwrap_err().to_string(),
+        "invalid escape char: 33 at position 2"
+    );
 }
 
 #[test]
