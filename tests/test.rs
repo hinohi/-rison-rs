@@ -2,7 +2,7 @@ use maplit::{btreemap, hashmap};
 use ordered_float::OrderedFloat;
 use serde::{ser, Serialize};
 use serde_bytes::{ByteBuf, Bytes};
-use serde_rison::ser::to_string;
+use serde_rison::{de::from_str, ser::to_string};
 use std::collections::HashMap;
 
 fn ok<T: ?Sized + ser::Serialize>(value: &T) -> String {
@@ -15,9 +15,13 @@ fn test_ser_unit() {
 }
 
 #[test]
-fn test_ser_bool() {
+fn test_bool() {
     assert_eq!(ok(&true), "!t");
     assert_eq!(ok(&false), "!f");
+    let b: bool = from_str("!t").unwrap();
+    assert_eq!(b, true);
+    let b: bool = from_str("!f").unwrap();
+    assert_eq!(b, false);
 }
 
 #[test]
