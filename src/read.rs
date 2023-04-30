@@ -3,6 +3,10 @@ pub trait Read {
 
     fn peak(&mut self) -> Option<u8>;
 
+    fn peek_or_null(&mut self) -> u8 {
+        self.peak().unwrap_or(b'\x00')
+    }
+
     fn position(&self) -> usize;
 
     fn eat_char(&mut self);

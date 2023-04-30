@@ -13,6 +13,7 @@ enum ErrorCode {
     InvalidChar(u8, u8),
     InvalidEscape(u8),
     EofWhileParsingValue,
+    InvalidNumber,
 }
 
 pub type Result<T> = result::Result<T, Error>;
@@ -28,6 +29,7 @@ impl fmt::Display for ErrorCode {
                 write!(f, "invalid escape char: {}", unexp)
             }
             ErrorCode::EofWhileParsingValue => f.write_str("EOF while parsing a value"),
+            ErrorCode::InvalidNumber => f.write_str("invalid number"),
         }
     }
 }
@@ -103,8 +105,110 @@ impl<R: read::Read> Deserializer<R> {
     }
 
     #[cold]
+    fn invalid_type(&mut self, b: Option<u8>, exp: &dyn Expected) -> Error {
+        let err = match b.unwrap_or(b'\x00') {
+            b'!' => self.invalid_escaped_type(self.read.next(), exp),
+            b'(' => de::Error::invalid_type(Unexpected::Map, exp),
+            _ => todo!(),
+        };
+        self.fix_position(err)
+    }
+
+    #[cold]
     fn fix_position(&self, err: Error) -> Error {
         self.error(err.code)
+    }
+
+    fn deserialize_number<'de, V>(&mut self, visitor: V) -> Result<V::Value>
+    where
+        V: de::Visitor<'de>,
+    {
+        let peek = match self.read.peak() {
+            Some(b) => b,
+            None => return Err(self.error(ErrorCode::EofWhileParsingValue)),
+        };
+        let f = match peek {
+            b'-' => {
+                self.read.eat_char();
+                self.parse_significand(false)?
+            }
+            b'0'..=b'9' => self.parse_significand(true)?,
+            _ => {
+                self.read.eat_char();
+                return Err(self.invalid_type(Some(peek), &visitor));
+            }
+        };
+        visitor.visit_f64(f)
+    }
+
+    fn parse_significand(&mut self, positive: bool) -> Result<f64> {
+        let next = match self.read.next() {
+            Some(b) => b,
+            None => return Err(self.error(ErrorCode::EofWhileParsingValue)),
+        };
+        match next {
+            b'0' => match self.read.peek_or_null() {
+                b'0'..=b'9' => return Err(self.error(ErrorCode::InvalidNumber)),
+                _ => self.parse_number(positive, 0),
+            },
+            c @ b'1'..=b'9' => {
+                let mut significand = (c - b'0') as f64;
+                loop {
+                    match self.read.peek_or_null() {
+                        c @ b'0'..=b'9' => {
+                            significand = significand * 10.0 + (c - b'0') as f64;
+                        }
+                        _ => self.parse_number(positive, significand),
+                    }
+                }
+            }
+        }
+    }
+
+    fn parse_number(&mut self, positive: bool, significand: f64) -> Result<ParserNumber> {
+        match self.read.peek_or_null() {
+            b'.' => self.parse_decimal(positive, significand, 0),
+            b'e' => self.parse_exponent(positive, significand, 0),
+            _ => Ok(if positive { significand } else { -significand }),
+        }
+    }
+
+    fn parse_decimal(
+        &mut self,
+        positive: bool,
+        mut significand: f64,
+        exponent_before_decimal_point: i32,
+    ) -> Result<f64> {
+        self.read.eat_char();
+
+        let mut exponent_after_decimal_point = 0;
+        while let c @ b'0'..=b'9' = self.read.peek_or_null() {
+            self.eat_char();
+            significand = significand * 10 + (c - b'0') as f64;
+            exponent_after_decimal_point -= 1;
+        }
+
+        if exponent_after_decimal_point == 0 {
+            return match self.read.peak() {
+                Some(_) => Err(self.error(ErrorCode::InvalidNumber)),
+                None => Err(self.error(ErrorCode::EofWhileParsingValue)),
+            };
+        }
+
+        let exponent = exponent_before_decimal_point + exponent_after_decimal_point;
+        match self.read.peek_or_null() {
+            b'e' => self.parse_exponent(positive, significand, exponent),
+            _ => self.f64_from_parts(positive, significand, exponent),
+        }
+    }
+
+    fn parse_exponent(
+        &mut self,
+        positive: bool,
+        significand: f64,
+        starting_exp: i32,
+    ) -> Result<f64> {
+        todo!()
     }
 }
 
@@ -137,11 +241,11 @@ where
         }
     }
 
-    fn deserialize_i8<V>(self, _visitor: V) -> Result<V::Value>
+    fn deserialize_i8<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        todo!()
+        self.deserialize_number(visitor)
     }
 
     fn deserialize_i16<V>(self, _visitor: V) -> Result<V::Value>
